@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Skyhook Eval App</string>
+    <string name="google_maps_key" templateMergeStrategy="preserve" translatable="false">AIzaSyBA8ZhDBrvn7mEzX-dFKiyLbBM4Io754O0</string>
+    <string name="skyhook_key">eJwVwcENACAIBLC3w5BwCIhfFZcy7m5sUcBfV0E5WmPAuFFlCLVMpbnYKWN7mKFLzPsACp8K6Q</string>
+    <string name="go_offline">Go Offline</string>
+    <string name="go_online">Go Online</string>
+</resources>
