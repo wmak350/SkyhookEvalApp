@@ -27,11 +27,11 @@ fun getHaversineDistance(pos1: LatLng, pos2: LatLng, unit: DistanceUnit): Double
     return R * h2
 }
 
-class LocationPoint(val time: Long, val lat: Double, val lng: Double, val alt: Double, val speed: Double) {
+class LocationPoint(val time: Long, val lat: Double, val lng: Double, val alt: Double, val speed: Double, val isPeriodic: Boolean) {
 
     override fun toString(): String {
         val timeStr = SimpleDateFormat("hh:mm:ss").format(Date(System.currentTimeMillis()))
-        return "Time: $timeStr " +
+        return if (isPeriodic) "P:" else "" + "Time: $timeStr " +
                 "Lat:${if (lat != -1.0) lat else "N/A"} " +
                 "Lng:${if (lng != -1.0) lng else "N/A"} " +
                 "Alt:${if (alt != -1.0) alt else "N/A"} " +
@@ -41,19 +41,21 @@ class LocationPoint(val time: Long, val lat: Double, val lng: Double, val alt: D
     fun toCSString(): String {
         val timeStr = SimpleDateFormat("hh:mm:ss").format(Date(System.currentTimeMillis()))
         return "$timeStr," +
-                "${if (lat != -1.0) lat else -1.0} " +
-                "${if (lng != -1.0) lng else -1.0} " +
-                "${if (alt != -1.0) alt else -1.0} " +
-                "${if (speed != -1.0) speed else -1.0}"
+                "${if (lat != -1.0) lat else -1.0}," +
+                "${if (lng != -1.0) lng else -1.0}," +
+                "${if (alt != -1.0) alt else -1.0}," +
+                "${if (speed != -1.0) speed else -1.0}," +
+                "${if (isPeriodic) "T" else "F"}"
     }
 }
 
-fun WPSLocation.toLocationPoint(): LocationPoint {
+fun WPSLocation.toLocationPoint(isPeriodic: Boolean = false): LocationPoint {
     return LocationPoint(
         this.serverTimestamp,
         if (this.hasLatitude()) this.latitude else -1.0,
         if (this.hasLongitude()) this.longitude else -1.0,
         if (this.hasAltitude()) this.altitude else -1.0,
-        if (this.hasSpeed()) this.speed else -1.0
+        if (this.hasSpeed()) this.speed else -1.0,
+        isPeriodic
     )
 }

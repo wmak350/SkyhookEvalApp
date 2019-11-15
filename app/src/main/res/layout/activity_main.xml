@@ -56,5 +56,12 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Go offline" />
+
+        <Button
+            android:id="@+id/getCurrPosBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Current Pos" />
     </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

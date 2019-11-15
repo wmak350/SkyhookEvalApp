@@ -35,7 +35,9 @@
 
         <service android:name=".LocationUpdateForgroundService"
             android:enabled="true" android:exported="false"></service>
-        <activity android:name=".MainActivity">
+        <activity android:name=".MainActivity"
+            android:configChanges="orientation"
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

@@ -92,17 +92,23 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         offlineBtn.setOnClickListener{
             if (offlineBtn.text.toString().toLowerCase(Locale.getDefault()) ==
                 applicationContext.getString(R.string.go_offline).toLowerCase(Locale.getDefault())) {
-                goOffline()
+                //goOffline()
                 offlineBtn.setText(applicationContext.getString(R.string.go_online))
             } else {
-                goOnline()
+                //goOnline()
                 offlineBtn.setText(applicationContext.getString(R.string.go_offline))
             }
+        }
+
+        getCurrPosBtn.setOnClickListener {
+            fetchFirstPostion()
         }
 
         setupGeoFences()
         setupPeriodicLocationUpdates()
         setupForgroundService()
+
+        sendNotification("${applicationContext.getString(R.string.app_name)} is up and running...")
     }
 
     override fun onResume() {
@@ -151,15 +157,15 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         mMap = googleMap
 
         // Add a marker in Sydney and move the camera
-        var start = LatLng(22.28552, 114.15769)
+        var last = LatLng(22.28552, 114.15769)
         if (mLocations.size > 0) {
-            val firstPoint = mLocations.first()
-            start = LatLng(firstPoint.lat, firstPoint.lng)
+            val lastPoint = mLocations.last()
+            last = LatLng(lastPoint.lat, lastPoint.lng)
         }
         mMap?.let {
             it.setMinZoomPreference(it.maxZoomLevel - 3)
             drawTrackLineOnMap()
-            it.moveCamera(CameraUpdateFactory.newLatLng(start))
+            it.moveCamera(CameraUpdateFactory.newLatLng(last))
         }
     }
 
@@ -202,13 +208,16 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         if (mLocations.size > 0) {
             lastLocationPoint = mLocations.last()
         }
-        if (lastLocationPoint?.lat == location.lat ||
-            lastLocationPoint?.lng == location.lng)
-            return
-        if (lastLocationPoint?.lat != null && lastLocationPoint?.lng != null &&
-            getHaversineDistance(LatLng(lastLocationPoint.lat, lastLocationPoint.lng),
-                    LatLng(location.lat, location.lng), DistanceUnit.Kilometers) <= 50)
-            return
+        lastLocationPoint?.let {
+            if (it.lat == location.lat ||
+                it.lng == location.lng)
+                return
+            val dist = getHaversineDistance(LatLng(it.lat, it.lng),
+                    LatLng(location.lat, location.lng), DistanceUnit.Kilometers)
+            if (dist <= 0.05)
+                return
+        }
+        Log.i("MainActivity", "Added Location: ${location}")
         mLocations.add(location)
         drawTrackLineOnMap()
         mSWriter?.append(location.toCSString())
@@ -227,13 +236,14 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             mLocations.clear()
             while (!TextUtils.isEmpty(line)) {
                 val sArray = line.split(",")
-                if (sArray.size == 5) {
+                if (sArray.size == 6) {
                     val currLocPoint = LocationPoint(
                         sArray[0].toLong(),
                         sArray[1].toDouble(),
                         sArray[2].toDouble(),
                         sArray[3].toDouble(),
-                        sArray[4].toDouble())
+                        sArray[4].toDouble(),
+                        sArray[5] == "T")
                     mLocations.add(currLocPoint)
                 }
                 line = bufReader.readLine()
@@ -373,20 +383,19 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun setupPeriodicLocationUpdates() {
         mCancelPeridoicLocationUpdates = false
         mPeriodicLocationUpdatesIsStopped = false
-        mXPS.getPeriodicLocation(null, null, false, 45 * 1000 * 60, 0, object: WPSPeriodicLocationCallback {
+        mXPS.getPeriodicLocation(null, null, false, 45 * 1000, 0, object: WPSPeriodicLocationCallback {
             override fun handleWPSPeriodicLocation(location: WPSLocation?): WPSContinuation {
                 runOnUiThread {
                     location?.let {
-                        saveLocationToFileAndDrawIt(it.toLocationPoint())
+                        saveLocationToFileAndDrawIt(it.toLocationPoint(isPeriodic = true))
                     }
                 }
-                if (mCancelPeridoicLocationUpdates)
-                    mPeriodicLocationUpdatesIsStopped = true
                 return if (mCancelPeridoicLocationUpdates) WPSContinuation.WPS_STOP else WPSContinuation.WPS_CONTINUE
             }
 
             override fun done() {
-
+                if (mCancelPeridoicLocationUpdates)
+                    mPeriodicLocationUpdatesIsStopped = true
             }
 
             override fun handleError(error: WPSReturnCode?): WPSContinuation {
@@ -394,7 +403,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                     // display error
                     resText.append("getPeriodicLocationErr: ${error?.name}")
                 }
-
                 return WPSContinuation.WPS_CONTINUE
             }
         })
@@ -409,15 +417,28 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
         entranceList.forEach {
-            mXPS.setGeoFence(it.definedFence, object: GeoFenceCallback {
-                override fun handleGeoFence(geoFence: WPSGeoFence?, location: WPSLocation?): WPSContinuation {
-                    sendNotification("You have entered ${it.name}")
+            mXPS.setGeoFence(it.definedFence, object : GeoFenceCallback {
+                override fun handleGeoFence(
+                    geoFence: WPSGeoFence?,
+                    location: WPSLocation?
+                ): WPSContinuation {
+                    val text = "You have entered ${it.name}"
+                    sendNotification(text)
+                    runOnUiThread {
+                        resText.append("Time:${mSDF.format(Date(System.currentTimeMillis()))}: $text\n")
+                    }
                     return WPSContinuation.WPS_CONTINUE
                 }
             })
+        }
+        exitList.forEach {
             mXPS.setGeoFence(it.definedFence, object: GeoFenceCallback {
                 override fun handleGeoFence(p0: WPSGeoFence?, p1: WPSLocation?): WPSContinuation {
-                    sendNotification("You have left ${it.name}")
+                    val text = "You have left ${it.name}"
+                    sendNotification(text)
+                    runOnUiThread {
+                        resText.append("Time:${mSDF.format(Date(System.currentTimeMillis()))}: $text\n")
+                    }
                     return WPSContinuation.WPS_CONTINUE
                 }
             })
@@ -425,7 +446,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun sendNotification(text: String) {
-        val idChannel = "my_channel_01"
+        val channelId = "my_channel_01"
+        val channelName = "my_channel_name"
 
         val context = this@MainActivity
         val mainIntent = Intent(context, MainActivity::class.java)
@@ -434,23 +456,24 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        var channel: NotificationChannel? = null
         // The id of the channel.
 
-        val builder = NotificationCompat.Builder(context, "")
+        val builder = NotificationCompat.Builder(context, channelId)
         builder.setContentTitle(context.getString(R.string.app_name))
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setContentIntent(pendingIntent)
+                .setContentTitle("SK Demo App")
                 .setContentText(text)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val importance = NotificationManager.IMPORTANCE_HIGH;
-            channel = NotificationChannel(idChannel, context.getString(R.string.app_name), importance)
+            val channel = NotificationChannel(channelId, channelName, importance)
             // Configure the notification channel.
             with (channel) {
                 enableLights(true)
                 setLightColor(Color.RED)
                 enableVibration(true)
+                description = "SK Notification"
             }
             notificationManager.createNotificationChannel(channel);
         } else {
