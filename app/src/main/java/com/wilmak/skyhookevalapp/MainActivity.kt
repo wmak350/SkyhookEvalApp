@@ -33,14 +33,16 @@ import android.graphics.Color
 import com.google.android.gms.maps.SupportMapFragment
 import com.wilmak.skyhookevalapp.LocationUpdateForgroundService.Companion.SKYHOOK_EVALAPP_START_PERIODIC_UPDATE
 import com.wilmak.skyhookevalapp.LocationUpdateForgroundService.Companion.SKYHOOK_EVALAPP_STOP_PERIODIC_UPDATE
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var mXPS: IWPS
     private var mMap: GoogleMap? = null
-    private var mCancelPeridoicLocationUpdates = false
-    private var mPeriodicLocationUpdatesIsStopped = false
+    //private var mCancelPeridoicLocationUpdates = false
+    //private var mPeriodicLocationUpdatesIsStopped = false
     private var mOfflineToken: ByteArray? = null
     private var mRegisteredGeneralInfoReceiver = false
     private val mLocations: MutableList<LocationPoint> = mutableListOf<LocationPoint>()
@@ -65,6 +67,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
         const val REQUEST_CODE_LOCATION_PERMISSION = 1000
         const val LocInfo_Filename = "skyhook_locations"
+        const val LocInfo_Filename_Ext = ".txt"
         val Offline_Key = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".reversed()
         val GeoFencesDefinitions = arrayOf<GeofenceDefinition>(
             GeofenceDefinition("Metro City II", 22.323514, 114.257857, 200),
@@ -92,12 +95,17 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         offlineBtn.setOnClickListener{
             if (offlineBtn.text.toString().toLowerCase(Locale.getDefault()) ==
                 applicationContext.getString(R.string.go_offline).toLowerCase(Locale.getDefault())) {
-                goOffline()
+                //goOffline()
                 offlineBtn.setText(applicationContext.getString(R.string.go_online))
             } else {
-                goOnline()
+                //goOnline()
                 offlineBtn.setText(applicationContext.getString(R.string.go_offline))
             }
+        }
+
+        getCurrPosBtn.setOnClickListener {
+            clearLogInfoFile()
+            fetchFirstPostion()
         }
 
         setupGeoFences()
@@ -170,7 +178,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun openLocInfoFileForWriting() {
-        mFos = applicationContext.openFileOutput(LocInfo_Filename, Context.MODE_APPEND)
+        mFos = applicationContext.openFileOutput("${LocInfo_Filename}${LocInfo_Filename_Ext}", Context.MODE_APPEND)
         mSWriter = OutputStreamWriter(mFos!!)
     }
 
@@ -180,15 +188,18 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         mLocations.clear()
     }
 
-    private fun removeLocInfoFile() {
-        val f = applicationContext.getFileStreamPath(LocInfo_Filename)
-        if (f.exists())
-            f.delete()
+    private fun useNextLocInfoFile() {
+        var f = File("${applicationContext.filesDir}${File.separator}${LocInfo_Filename}${LocInfo_Filename_Ext}")
+        if (f.exists()) {
+            val path = applicationContext.getExternalFilesDir(null)
+            val newPathName = "${path}${File.separator}${LocInfo_Filename}_${System.currentTimeMillis()}$LocInfo_Filename_Ext"
+            Files.move(f.toPath(), File(newPathName).toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }
     }
 
     private fun clearLogInfoFile() {
         closeLocInfoFile()
-        removeLocInfoFile()
+        useNextLocInfoFile()
         openLocInfoFileForWriting()
     }
 
@@ -216,7 +227,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         Log.i("MainActivity", "Added Location: ${location}")
         mLocations.add(location)
         drawTrackLineOnMap()
-        mSWriter?.append(location.toCSString())
+        mSWriter?.appendln(location.toCSString())
         mSWriter?.flush()
     }
 
@@ -224,7 +235,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
         try {
             Log.i("MainActivity", "System File Path: ${applicationContext.filesDir}")
-            val fisTemp = applicationContext.openFileInput(LocInfo_Filename)
+            val fisTemp = applicationContext.openFileInput("${LocInfo_Filename}${LocInfo_Filename_Ext}")
             val isr = InputStreamReader(fisTemp)
             val bufReader = BufferedReader(isr)
             var line = bufReader.readLine()
@@ -232,13 +243,14 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             mLocations.clear()
             while (!TextUtils.isEmpty(line)) {
                 val sArray = line.split(",")
-                if (sArray.size == 5) {
+                if (sArray.size == 6) {
                     val currLocPoint = LocationPoint(
-                        sArray[0].toLong(),
+                        sArray[0],
                         sArray[1].toDouble(),
                         sArray[2].toDouble(),
                         sArray[3].toDouble(),
-                        sArray[4].toDouble())
+                        sArray[4].toDouble(),
+                        sArray[5] == "T")
                     mLocations.add(currLocPoint)
                 }
                 line = bufReader.readLine()
@@ -320,10 +332,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             })
     }
 
-    private fun cancelPeriodicLocationUpdate() {
-        mCancelPeridoicLocationUpdates = true
-    }
-
+    /*
     private fun goOffline() {
         offlineBtn.isEnabled = false
         cancelPeriodicLocationUpdate()
@@ -340,7 +349,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         }, 0, 1 * 1000)
     }
-
+    */
     private fun goOnline() {
         if (mOfflineToken == null) {
             resText.append("Invalid state encountered.  Offline Token is null")
@@ -376,22 +385,21 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun setupPeriodicLocationUpdates() {
-        mCancelPeridoicLocationUpdates = false
-        mPeriodicLocationUpdatesIsStopped = false
-        mXPS.getPeriodicLocation(null, null, false, 45 * 1000 * 60, 0, object: WPSPeriodicLocationCallback {
+        //mCancelPeridoicLocationUpdates = false
+        //mPeriodicLocationUpdatesIsStopped = false
+        mXPS.getPeriodicLocation(null, null, false, 45 * 1000, 0, object: WPSPeriodicLocationCallback {
             override fun handleWPSPeriodicLocation(location: WPSLocation?): WPSContinuation {
                 runOnUiThread {
                     location?.let {
-                        saveLocationToFileAndDrawIt(it.toLocationPoint())
+                        saveLocationToFileAndDrawIt(it.toLocationPoint(isPeriodic = true))
                     }
                 }
-                if (mCancelPeridoicLocationUpdates)
-                    mPeriodicLocationUpdatesIsStopped = true
-                return if (mCancelPeridoicLocationUpdates) WPSContinuation.WPS_STOP else WPSContinuation.WPS_CONTINUE
+                return WPSContinuation.WPS_CONTINUE
             }
 
             override fun done() {
-
+                //if (mCancelPeridoicLocationUpdates)
+                //    mPeriodicLocationUpdatesIsStopped = true
             }
 
             override fun handleError(error: WPSReturnCode?): WPSContinuation {
@@ -399,7 +407,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                     // display error
                     resText.append("getPeriodicLocationErr: ${error?.name}")
                 }
-
                 return WPSContinuation.WPS_CONTINUE
             }
         })
@@ -414,15 +421,28 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
         entranceList.forEach {
-            mXPS.setGeoFence(it.definedFence, object: GeoFenceCallback {
-                override fun handleGeoFence(geoFence: WPSGeoFence?, location: WPSLocation?): WPSContinuation {
-                    sendNotification("You have entered ${it.name}")
+            mXPS.setGeoFence(it.definedFence, object : GeoFenceCallback {
+                override fun handleGeoFence(
+                    geoFence: WPSGeoFence?,
+                    location: WPSLocation?
+                ): WPSContinuation {
+                    val text = "You have entered ${it.name}"
+                    sendNotification(text)
+                    runOnUiThread {
+                        resText.append("Time:${mSDF.format(Date(System.currentTimeMillis()))}: $text\n")
+                    }
                     return WPSContinuation.WPS_CONTINUE
                 }
             })
+        }
+        exitList.forEach {
             mXPS.setGeoFence(it.definedFence, object: GeoFenceCallback {
                 override fun handleGeoFence(p0: WPSGeoFence?, p1: WPSLocation?): WPSContinuation {
-                    sendNotification("You have left ${it.name}")
+                    val text = "You have left ${it.name}"
+                    sendNotification(text)
+                    runOnUiThread {
+                        resText.append("Time:${mSDF.format(Date(System.currentTimeMillis()))}: $text\n")
+                    }
                     return WPSContinuation.WPS_CONTINUE
                 }
             })
