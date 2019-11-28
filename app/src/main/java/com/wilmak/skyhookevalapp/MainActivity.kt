@@ -103,6 +103,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         setupGeoFences()
         setupPeriodicLocationUpdates()
         setupForgroundService()
+
+        sendNotification("${applicationContext.getString(R.string.app_name)} is up and running...")
     }
 
     override fun onResume() {
@@ -151,15 +153,15 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         mMap = googleMap
 
         // Add a marker in Sydney and move the camera
-        var start = LatLng(22.28552, 114.15769)
+        var last = LatLng(22.28552, 114.15769)
         if (mLocations.size > 0) {
-            val firstPoint = mLocations.first()
-            start = LatLng(firstPoint.lat, firstPoint.lng)
+            val lastPoint = mLocations.last()
+            last = LatLng(lastPoint.lat, lastPoint.lng)
         }
         mMap?.let {
             it.setMinZoomPreference(it.maxZoomLevel - 3)
             drawTrackLineOnMap()
-            it.moveCamera(CameraUpdateFactory.newLatLng(start))
+            it.moveCamera(CameraUpdateFactory.newLatLng(last))
         }
     }
 
@@ -202,13 +204,16 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         if (mLocations.size > 0) {
             lastLocationPoint = mLocations.last()
         }
-        if (lastLocationPoint?.lat == location.lat ||
-            lastLocationPoint?.lng == location.lng)
-            return
-        if (lastLocationPoint?.lat != null && lastLocationPoint?.lng != null &&
-            getHaversineDistance(LatLng(lastLocationPoint.lat, lastLocationPoint.lng),
-                    LatLng(location.lat, location.lng), DistanceUnit.Kilometers) <= 50)
-            return
+        lastLocationPoint?.let {
+            if (it.lat == location.lat ||
+                it.lng == location.lng)
+                return
+            val dist = getHaversineDistance(LatLng(it.lat, it.lng),
+                    LatLng(location.lat, location.lng), DistanceUnit.Kilometers)
+            if (dist <= 0.025)
+                return
+        }
+        Log.i("MainActivity", "Added Location: ${location}")
         mLocations.add(location)
         drawTrackLineOnMap()
         mSWriter?.append(location.toCSString())
@@ -425,7 +430,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun sendNotification(text: String) {
-        val idChannel = "my_channel_01"
+        val channelId = "my_channel_01"
+        val channelName = "my_channel_name"
 
         val context = this@MainActivity
         val mainIntent = Intent(context, MainActivity::class.java)
@@ -434,23 +440,24 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        var channel: NotificationChannel? = null
         // The id of the channel.
 
-        val builder = NotificationCompat.Builder(context, "")
+        val builder = NotificationCompat.Builder(context, channelId)
         builder.setContentTitle(context.getString(R.string.app_name))
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setContentIntent(pendingIntent)
+                .setContentTitle("SK Demo App")
                 .setContentText(text)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val importance = NotificationManager.IMPORTANCE_HIGH;
-            channel = NotificationChannel(idChannel, context.getString(R.string.app_name), importance)
+            val channel = NotificationChannel(channelId, channelName, importance)
             // Configure the notification channel.
             with (channel) {
                 enableLights(true)
                 setLightColor(Color.RED)
                 enableVibration(true)
+                description = "SK Notification"
             }
             notificationManager.createNotificationChannel(channel);
         } else {
