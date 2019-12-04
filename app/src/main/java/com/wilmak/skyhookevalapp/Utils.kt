@@ -27,22 +27,24 @@ fun getHaversineDistance(pos1: LatLng, pos2: LatLng, unit: DistanceUnit): Double
     return R * h2
 }
 
-class LocationPoint(val time: String, val lat: Double, val lng: Double, val alt: Double, val speed: Double, val isPeriodic: Boolean) {
+class LocationPoint(val time: String, val lat: Double, val lng: Double, val hpe: Int, val alt: Double, val speed: Double, val isPeriodic: Boolean) {
 
     override fun toString(): String {
         val timeStr = SimpleDateFormat("hh:mm:ss").format(Date(System.currentTimeMillis()))
         return if (isPeriodic) "P:" else "" + "Time: $timeStr " +
                 "Lat:${if (lat != -1.0) lat else "N/A"} " +
                 "Lng:${if (lng != -1.0) lng else "N/A"} " +
+                "HPE:${if (hpe != -1) "+/-" + hpe.toString() else "N/A"} " +
                 "Alt:${if (alt != -1.0) alt else "N/A"} " +
                 "Speed:${if (speed != -1.0) speed else "N/A"}\n"
     }
 
     fun toCSString(): String {
-        val timeStr = SimpleDateFormat("hh:mm:ss").format(Date(System.currentTimeMillis()))
+        val timeStr = SimpleDateFormat("MM-dd hh:mm:ss").format(Date(System.currentTimeMillis()))
         return "$timeStr," +
                 "${if (lat != -1.0) lat else -1.0}," +
                 "${if (lng != -1.0) lng else -1.0}," +
+                "${if (hpe != -1) hpe else -1}," +
                 "${if (alt != -1.0) alt else -1.0}," +
                 "${if (speed != -1.0) speed else -1.0}," +
                 "${if (isPeriodic) "T" else "F"}"
@@ -54,6 +56,7 @@ fun WPSLocation.toLocationPoint(isPeriodic: Boolean = false): LocationPoint {
         SimpleDateFormat("hh:mm:ss").format(Date(System.currentTimeMillis())),
         if (this.hasLatitude()) this.latitude else -1.0,
         if (this.hasLongitude()) this.longitude else -1.0,
+        if (this.hasHPE()) this.hpe else -1,
         if (this.hasAltitude()) this.altitude else -1.0,
         if (this.hasSpeed()) this.speed else -1.0,
         isPeriodic
