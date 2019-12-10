@@ -31,7 +31,7 @@ class LocationPoint(val time: String, val lat: Double, val lng: Double, val hpe:
 
     override fun toString(): String {
         val timeStr = SimpleDateFormat("hh:mm:ss").format(Date(System.currentTimeMillis()))
-        return if (isPeriodic) "P:" else "" + "Time: $timeStr " +
+        return (if (isPeriodic) "P:" else "" + "Time: $timeStr ") +
                 "Lat:${if (lat != -1.0) lat else "N/A"} " +
                 "Lng:${if (lng != -1.0) lng else "N/A"} " +
                 "HPE:${if (hpe != -1) "+/-" + hpe.toString() else "N/A"} " +
