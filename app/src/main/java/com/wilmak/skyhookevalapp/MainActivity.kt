@@ -68,6 +68,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         const val REQUEST_CODE_LOCATION_PERMISSION = 1000
         const val LocInfo_Filename = "skyhook_locations"
         const val LocInfo_Filename_Ext = ".txt"
+        const val Tile_Dir = "tiles"
         val Offline_Key = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".reversed()
         val GeoFencesDefinitions = arrayOf<GeofenceDefinition>(
             GeofenceDefinition("Metro City II", 22.323514, 114.257857, 200),
@@ -87,6 +88,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         tran.add(R.id.frameLayout, mapFragment)
         tran.commit()
 
+        clearLogInfoFile()
         mXPS = XPS(applicationContext)
         mXPS.setKey(applicationContext.getString(R.string.skyhook_key))
         ActivityCompat.requestPermissions(
@@ -105,12 +107,12 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
         getCurrPosBtn.setOnClickListener {
             clearLogInfoFile()
-            fetchFirstPostion()
+            //fetchFirstPostion()
         }
 
         setupGeoFences()
         setupPeriodicLocationUpdates()
-        setupForgroundService()
+        //setupForgroundService()
 
         sendNotification("${applicationContext.getString(R.string.app_name)} is up and running...")
     }
@@ -118,7 +120,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     override fun onResume() {
         super.onResume()
 
-        fetchFirstPostion()
+        //fetchFirstPostion()
         clearActivityView()
         restoreLastLocations()
         if (!mRegisteredGeneralInfoReceiver) {
@@ -243,14 +245,15 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             mLocations.clear()
             while (!TextUtils.isEmpty(line)) {
                 val sArray = line.split(",")
-                if (sArray.size == 6) {
+                if (sArray.size == 7) {
                     val currLocPoint = LocationPoint(
                         sArray[0],
                         sArray[1].toDouble(),
                         sArray[2].toDouble(),
-                        sArray[3].toDouble(),
+                        sArray[3].toInt(),
                         sArray[4].toDouble(),
-                        sArray[5] == "T")
+                        sArray[5].toDouble(),
+                        sArray[6] == "T")
                     mLocations.add(currLocPoint)
                 }
                 line = bufReader.readLine()
@@ -387,7 +390,17 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun setupPeriodicLocationUpdates() {
         //mCancelPeridoicLocationUpdates = false
         //mPeriodicLocationUpdatesIsStopped = false
-        mXPS.getPeriodicLocation(null, null, false, 45 * 1000, 0, object: WPSPeriodicLocationCallback {
+
+        val path = applicationContext.getExternalFilesDir(null)
+        val tileDir = File("${path}${File.separator}${Tile_Dir}")
+        tileDir.mkdirs()
+        mXPS.setTiling(
+            tileDir.getAbsolutePath(),  // directory where to store tiles
+            9 * 50 * 1024,              // 3x3 tiles (~50KB each) for each session
+            9 * 50 * 1024 * 10,         // total size is 10x times the session size
+            null);
+        mXPS.getPeriodicLocation(null, WPSStreetAddressLookup.WPS_NO_STREET_ADDRESS_LOOKUP, false, 30 * 1000, 0,
+            object: WPSPeriodicLocationCallback {
             override fun handleWPSPeriodicLocation(location: WPSLocation?): WPSContinuation {
                 runOnUiThread {
                     location?.let {
